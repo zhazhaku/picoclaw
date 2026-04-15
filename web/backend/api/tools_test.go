@@ -250,8 +250,8 @@ func TestHandleUpdateWebSearchConfig(t *testing.T) {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
 	cfg.Tools.Web.Brave.SetAPIKeys([]string{"brave-old-1", "brave-old-2"})
-	if err := config.SaveConfig(configPath, cfg); err != nil {
-		t.Fatalf("SaveConfig() error = %v", err)
+	if saveErr := config.SaveConfig(configPath, cfg); saveErr != nil {
+		t.Fatalf("SaveConfig() error = %v", saveErr)
 	}
 
 	h := NewHandler(configPath)
@@ -313,8 +313,8 @@ func TestHandleUpdateWebSearchConfig_PreservesAndReplacesMultiKeys(t *testing.T)
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
 	cfg.Tools.Web.Brave.SetAPIKeys([]string{"brave-old-1", "brave-old-2"})
-	if err := config.SaveConfig(configPath, cfg); err != nil {
-		t.Fatalf("SaveConfig() error = %v", err)
+	if saveErr := config.SaveConfig(configPath, cfg); saveErr != nil {
+		t.Fatalf("SaveConfig() error = %v", saveErr)
 	}
 
 	h := NewHandler(configPath)
@@ -345,7 +345,8 @@ func TestHandleUpdateWebSearchConfig_PreservesAndReplacesMultiKeys(t *testing.T)
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
-	if got := updated.Tools.Web.Brave.APIKeys.Values(); len(got) != 2 || got[0] != "brave-old-1" || got[1] != "brave-old-2" {
+	if got := updated.Tools.Web.Brave.APIKeys.Values(); len(got) != 2 ||
+		got[0] != "brave-old-1" || got[1] != "brave-old-2" {
 		t.Fatalf("brave api keys should be preserved, got %#v", got)
 	}
 
@@ -373,7 +374,8 @@ func TestHandleUpdateWebSearchConfig_PreservesAndReplacesMultiKeys(t *testing.T)
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
-	if got := updated.Tools.Web.Brave.APIKeys.Values(); len(got) != 2 || got[0] != "brave-new-1" || got[1] != "brave-new-2" {
+	if got := updated.Tools.Web.Brave.APIKeys.Values(); len(got) != 2 ||
+		got[0] != "brave-new-1" || got[1] != "brave-new-2" {
 		t.Fatalf("brave api keys should be replaced by api_keys, got %#v", got)
 	}
 }
