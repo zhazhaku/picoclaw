@@ -306,3 +306,112 @@ while true; do
   sleep 1
 done
 ```
+
+## Web UI API (v2.0)
+
+The Web UI exposes REST APIs at the Admin port. These are used by the embedded dashboard but are also available for programmatic access.
+
+### GET /api/v2/status
+
+Returns server status with task statistics.
+
+**Response:**
+
+```json
+{
+  "server_version": "1.0.0",
+  "start_time": 1714195200000,
+  "uptime_ms": 3600000,
+  "connected_clients": 3,
+  "queue_depth": 5,
+  "task_stats": {
+    "queued": 5,
+    "running": 2,
+    "completed": 10,
+    "failed": 1,
+    "cancelled": 0,
+    "escalated": 0
+  }
+}
+```
+
+### GET /api/v2/tasks
+
+Returns paginated task list with optional filters.
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `status` | string | — | Filter by status (Queued, Running, Completed, Failed, etc.) |
+| `role` | string | — | Filter by required role |
+| `limit` | int | 50 | Maximum results per page |
+| `offset` | int | 0 | Pagination offset |
+
+**Response:**
+
+```json
+{
+  "tasks": [
+    {
+      "task_id": "task-1-abc",
+      "status": "Running",
+      "instruction": "Write a function",
+      "required_role": "coder",
+      "assigned_client_id": "client-1",
+      "created_at": 1714195200000,
+      "started_at": 1714195201000
+    }
+  ],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### GET /api/v2/clients
+
+Returns connected clients with capabilities and load.
+
+**Response:**
+
+```json
+{
+  "clients": [
+    {
+      "client_id": "client-1",
+      "role": "coder",
+      "skills": ["github", "write_file"],
+      "state": "Connected",
+      "current_load": 1,
+      "last_heartbeat": 1714195200000
+    }
+  ]
+}
+```
+
+### GET /api/v2/events
+
+Server-Sent Events (SSE) endpoint for real-time updates.
+
+**Event Types:**
+
+| Event | Description |
+|-------|-------------|
+| `task_update` | Task status changed |
+| `client_update` | Client connected/disconnected |
+| `stats_update` | Periodic stats refresh (every 5s) |
+
+**Example (JavaScript):**
+
+```javascript
+const events = new EventSource('/api/v2/events');
+events.addEventListener('task_update', (e) => {
+  const task = JSON.parse(e.data);
+  console.log(`Task ${task.task_id}: ${task.status}`);
+});
+events.addEventListener('stats_update', (e) => {
+  const stats = JSON.parse(e.data);
+  console.log(`Queue depth: ${stats.queue_depth}`);
+});
+```

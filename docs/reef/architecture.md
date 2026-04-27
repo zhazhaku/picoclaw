@@ -18,24 +18,30 @@ This document describes the design and internal structure of the Reef distribute
 │  │  WebSocket  │  │  Scheduler  │  │     Admin Server    │  │
 │  │   Server    │  │             │  │                     │  │
 │  │   :8080     │  │  - Match    │  │  - /admin/status    │  │
-│  │             │  │  - Dispatch │  │  - /admin/tasks     │  │
-│  │  Accepts    │  │  - Retry    │  │  - /tasks           │  │
-│  │  Clients    │  │  - Escalate │  │                     │  │
-│  └──────┬──────┘  └──────┬──────┘  └─────────────────────┘  │
-│         │                │                                   │
-│  ┌──────┴────────────────┴──────┐                           │
+│  │   (TLS)     │  │  - Dispatch │  │  - /admin/tasks     │  │
+│  │             │  │  - Retry    │  │  - /tasks           │  │
+│  │  Accepts    │  │  - Escalate │  │                     │  │
+│  │  Clients    │  │             │  │  Web UI Dashboard   │  │
+│  └──────┬──────┘  └──────┬──────┘  │  - /ui/             │  │
+│         │                │         │  - /api/v2/*         │  │
+│  ┌──────┴────────────────┴──────┐  └─────────────────────┘  │
 │  │          Registry            │                           │
 │  │  - Client capabilities       │                           │
 │  │  - Heartbeat tracking        │                           │
 │  │  - Load balancing state      │                           │
 │  └──────────────────────────────┘                           │
 │         ▲                                                   │
-│         │ WebSocket                                          │
+│         │ WebSocket (TLS optional)                           │
 │         │                                                    │
-│  ┌──────┴──────┐     ┌─────────────────┐                   │
-│  │  Task Queue │     │ Heartbeat Scanner│                  │
-│  │  (in-mem)   │     │  (stale detection)│                 │
-│  └─────────────┘     └─────────────────┘                   │
+│  ┌──────┴──────┐  ┌─────────────────┐  ┌────────────────┐  │
+│  │  Task Queue │  │ Heartbeat Scanner│  │  Notification  │  │
+│  │ (persistent │  │  (stale detection)│  │    Manager     │  │
+│  │  SQLite)    │  └─────────────────┘  │  - Webhook     │  │
+│  └─────────────┘                       │  - Slack       │  │
+│                                        │  - Feishu      │  │
+│                                        │  - WeCom       │  │
+│                                        │  - SMTP        │  │
+│                                        └────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                               │
                               │ WebSocket (real messages)

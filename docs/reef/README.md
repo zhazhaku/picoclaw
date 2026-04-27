@@ -36,6 +36,12 @@ Reef uses a **hub-and-spoke** topology:
 ```bash
 # Using the CLI command
 picoclaw reef-server --ws-addr :8080 --admin-addr :8081 --token my-secret-token
+
+# With SQLite persistence and TLS
+picoclaw reef-server \
+  --ws-addr :8443 --admin-addr :8444 \
+  --token my-secret-token \
+  --store-type sqlite --store-path /var/lib/reef/reef.db
 ```
 
 Or configure via `config.json`:
@@ -46,10 +52,15 @@ Or configure via `config.json`:
     "swarm": {
       "enabled": true,
       "mode": "server",
-      "server_url": "",
       "ws_addr": ":8080",
       "admin_addr": ":8081",
-      "token": "my-secret-token"
+      "token": "my-secret-token",
+      "store_type": "sqlite",
+      "store_path": "/var/lib/reef/reef.db",
+      "notifications": [
+        { "type": "slack", "webhook_url": "https://hooks.slack.com/services/..." },
+        { "type": "feishu", "hook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/..." }
+      ]
     }
   }
 }
@@ -103,6 +114,16 @@ curl http://server-ip:8081/admin/status | jq .
 curl "http://server-ip:8081/admin/tasks?role=coder" | jq .
 ```
 
+### 5. Web UI Dashboard
+
+Open `http://server-ip:8081/ui/` in your browser for a real-time dashboard with:
+
+- **Overview** — Server status, connected clients, task statistics
+- **Tasks** — Task list with filtering, submission form, cancellation
+- **Clients** — Connected client list with role, skills, load
+
+The UI uses Server-Sent Events (SSE) for real-time updates.
+
 ## Concepts
 
 ### Role
@@ -123,8 +144,8 @@ You can define custom roles in `skills/roles/<role>.yaml`.
 Created → Queued → Assigned → Running → Completed
                       ↓           ↓
                    Paused     Failed → (Retry/Escalate)
-                      ↓
-                   Resumed → Running
+                      ↓                      ↓
+                   Resumed → Running    Escalated (admin alert)
 ```
 
 ### Client State
@@ -133,25 +154,63 @@ Created → Queued → Assigned → Running → Completed
 - **Stale**: Missed heartbeats, not accepting new tasks
 - **Disconnected**: WebSocket closed, in-flight tasks paused
 
+### Persistent Storage (v2.0)
+
+Reef supports SQLite-backed task persistence. When enabled, non-terminal tasks survive server restarts:
+
+- **Queued tasks** are restored and re-dispatched
+- **Running tasks** are reset to Queued and re-dispatched
+- **WAL mode** ensures concurrent read/write without blocking
+
+See [Deployment — Persistent Storage](deployment.md#persistent-storage-v20) for configuration.
+
+### TLS (v2.0)
+
+Native TLS support for both WebSocket and Admin API:
+
+- Server: `tls_enabled`, `tls_cert_file`, `tls_key_file`
+- Client: `wss://` URLs with optional custom CA and mutual TLS
+
+See [Deployment — TLS Configuration](deployment.md#tls-configuration-v20) for setup.
+
+### Notifications (v2.0)
+
+Multi-channel notification system for task escalation alerts:
+
+| Channel | Description |
+|---------|-------------|
+| Webhook | Generic HTTP POST |
+| Slack | Incoming Webhook with Block Kit |
+| Feishu (飞书) | Interactive card messages |
+| WeCom (企业微信) | Markdown messages |
+| SMTP | HTML email alerts |
+
+All channels support concurrent fan-out with fault isolation. See [Notifications](notifications.md) for configuration.
+
 ## Documentation
 
 - [Architecture](architecture.md) — System design, component interactions, message flow
-- [Deployment](deployment.md) — Docker Compose, systemd, multi-node setup
-- [API Reference](api.md) — Admin HTTP endpoints and WebSocket protocol
+- [Deployment](deployment.md) — Docker Compose, systemd, multi-node setup, TLS, persistent storage
+- [API Reference](api.md) — Admin HTTP endpoints, WebSocket protocol, Web UI API
 - [Roles & Skills](roles.md) — Built-in roles, custom role definition
 - [Protocol](protocol.md) — Message types, payload schemas, version compatibility
+- [Notifications](notifications.md) — Multi-channel notification configuration (Slack, Feishu, WeCom, SMTP, Webhook)
 
 ## Testing
 
 ```bash
-# Run all Reef tests (unit + e2e)
-go test ./pkg/reef/... ./pkg/channels/swarm/... ./test/e2e/... -v
+# Run all Reef tests (unit + e2e + perf)
+go test ./pkg/reef/... ./test/e2e/... ./test/perf/... -v
 
 # Run only E2E tests
 go test ./test/e2e/... -v
+
+# Run only performance baselines
+go test ./test/perf/... -v -timeout 120s
 
 # Run with race detector
 go test ./test/e2e/... -race
 ```
 
 See `test/e2e/` for the full E2E test suite covering 17 scenarios.
+See `test/perf/` for performance baseline tests with regression detection.

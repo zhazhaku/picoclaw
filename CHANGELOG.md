@@ -41,6 +41,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Notification configuration** — `notifications` array in SwarmSettings with per-channel config
 - **8 notification tests** — Manager fanout, fault isolation, all channel types
 
+### Added (Phase 4: Web UI Dashboard)
+
+- **Embedded Web UI** — SPA served at `/ui/` with `go:embed` (zero external dependencies)
+- **Dark theme** — Responsive layout with CSS variables (#1a1a2e background, #0f3460 accents)
+- **Hash-based routing** — `#/` (Overview), `#/tasks` (Tasks), `#/clients` (Clients)
+- **SSE real-time events** — `/api/v2/events` pushes task/client/stats updates
+- **REST API v2** — `/api/v2/status`, `/api/v2/tasks` (paginated), `/api/v2/clients`
+- **EventBus** — Pub/sub for real-time UI updates with non-blocking publish
+- **Task management** — Submit tasks, cancel tasks, pagination controls
+- **16 UI tests** — Redirect, static serving, APIs, SSE connection, EventBus
+
+### Added (Phase 5: Performance Baselines)
+
+- **Performance test framework** — `test/perf/` with Report/RegressionReport structures
+- **Percentile calculator** — p50, p95, p99 latency computation
+- **Regression detection** — p99 +20% or throughput -15% triggers regression flag
+- **9 baseline reports** — Task submit, status query, task list × concurrency 1/10/50
+- **JSON report persistence** — Reports saved to `test/perf/results/`
+
+### Fixed
+
+- **Webhook backward compatibility** — Legacy `webhook_urls` auto-creates WebhookNotifier when `notifications[]` is empty
+- **E2E test updated** — `TestE2E_Webhook_TaskEscalation` uses `notify.Alert` instead of `WebhookPayload`
+
 ## [0.2.0] — Reef v1.1
 
 ### Added
