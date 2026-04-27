@@ -89,6 +89,7 @@ type Task struct {
 	RequiredSkills  []string
 	MaxRetries      int
 	TimeoutMs       int64
+	ModelHint       string // optional: preferred model for execution
 	AssignedClient  string
 	Result          *TaskResult
 	Error           *TaskError

@@ -21,9 +21,10 @@ import (
 
 const (
 	channelName       = "swarm"
-	metadataKeyTaskID = "reef_task_id"
-	metadataKeyRole   = "reef_role"
-	metadataKeySkills = "reef_skills"
+	metadataKeyTaskID   = "reef_task_id"
+	metadataKeyRole     = "reef_role"
+	metadataKeySkills   = "reef_skills"
+	metadataKeyModelHint = "reef_model_hint"
 )
 
 // SwarmChannel bridges PicoClaw's MessageBus with Reef's WebSocket protocol.
@@ -337,6 +338,9 @@ func (s *SwarmChannel) dispatchTask(ctx context.Context, payload reef.TaskDispat
 	}
 	if len(payload.RequiredSkills) > 0 {
 		raw[metadataKeySkills] = strings.Join(payload.RequiredSkills, ",")
+	}
+	if payload.ModelHint != "" {
+		raw[metadataKeyModelHint] = payload.ModelHint
 	}
 
 	inboundCtx := bus.InboundContext{

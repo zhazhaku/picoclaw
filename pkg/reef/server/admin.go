@@ -15,23 +15,42 @@ import (
 type AdminServer struct {
 	registry  *Registry
 	scheduler *Scheduler
+	token     string // Bearer token for admin API authentication; empty = no auth
 	logger    *slog.Logger
 }
 
 // NewAdminServer creates an admin HTTP handler.
-func NewAdminServer(registry *Registry, scheduler *Scheduler, logger *slog.Logger) *AdminServer {
+func NewAdminServer(registry *Registry, scheduler *Scheduler, token string, logger *slog.Logger) *AdminServer {
 	return &AdminServer{
 		registry:  registry,
 		scheduler: scheduler,
+		token:     token,
 		logger:    logger,
 	}
 }
 
 // RegisterRoutes registers admin routes on the provided ServeMux.
 func (a *AdminServer) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/admin/status", a.handleStatus)
-	mux.HandleFunc("/admin/tasks", a.handleTasks)
-	mux.HandleFunc("/tasks", a.handleSubmitTask)
+	mux.HandleFunc("/admin/status", a.authMiddleware(a.handleStatus))
+	mux.HandleFunc("/admin/tasks", a.authMiddleware(a.handleTasks))
+	mux.HandleFunc("/tasks", a.authMiddleware(a.handleSubmitTask))
+}
+
+// authMiddleware wraps a handler with Bearer token authentication.
+// If no token is configured, authentication is skipped (dev mode).
+func (a *AdminServer) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if a.token == "" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer "+a.token {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
 
 // StatusResponse is the JSON shape for /admin/status.
@@ -184,6 +203,7 @@ type SubmitTaskRequest struct {
 	RequiredSkills []string `json:"required_skills,omitempty"`
 	MaxRetries     int      `json:"max_retries,omitempty"`
 	TimeoutMs      int64    `json:"timeout_ms,omitempty"`
+	ModelHint      string   `json:"model_hint,omitempty"`
 }
 
 func (a *AdminServer) handleSubmitTask(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +237,9 @@ func (a *AdminServer) handleSubmitTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.TimeoutMs > 0 {
 		task.TimeoutMs = req.TimeoutMs
+	}
+	if req.ModelHint != "" {
+		task.ModelHint = req.ModelHint
 	}
 
 	if err := a.scheduler.Submit(task); err != nil {

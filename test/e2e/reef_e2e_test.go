@@ -1,10 +1,16 @@
 package e2e
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/sipeed/picoclaw/pkg/reef"
+	"github.com/sipeed/picoclaw/pkg/reef/server"
 )
 
 // ---------------------------------------------------------------------------
@@ -695,5 +701,229 @@ func TestE2E_AdminSubmitTask(t *testing.T) {
 	}
 	if task.RequiredRole != "coder" {
 		t.Errorf("role=%s, want coder", task.RequiredRole)
+	}
+}
+
+// ============================================================================
+// Reef v1.1 E2E Tests
+// ============================================================================
+
+func TestE2E_AdminAPI_Auth_ValidToken(t *testing.T) {
+	srv := NewE2EServer(t, "secret123")
+	defer srv.Shutdown(t)
+
+	// Valid token should succeed
+	status := srv.GetStatus(t)
+	if status.ServerVersion == "" {
+		t.Fatal("expected non-empty server_version")
+	}
+}
+
+func TestE2E_AdminAPI_Auth_InvalidToken(t *testing.T) {
+	srv := NewE2EServer(t, "secret123")
+	defer srv.Shutdown(t)
+
+	resp := srv.GetStatusRaw(t, "Bearer wrong-token")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestE2E_AdminAPI_Auth_MissingToken(t *testing.T) {
+	srv := NewE2EServer(t, "secret123")
+	defer srv.Shutdown(t)
+
+	resp := srv.GetStatusRaw(t, "")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestE2E_AdminAPI_Auth_NoTokenConfigured(t *testing.T) {
+	srv := NewE2EServer(t, "")
+	defer srv.Shutdown(t)
+
+	// No token configured — auth is skipped
+	resp := srv.GetStatusRaw(t, "")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestE2E_AdminAPI_Auth_AllEndpoints(t *testing.T) {
+	srv := NewE2EServer(t, "secret123")
+	defer srv.Shutdown(t)
+
+	endpoints := []string{"/admin/status", "/admin/tasks", "/tasks"}
+	for _, ep := range endpoints {
+		method := http.MethodGet
+		if ep == "/tasks" {
+			method = http.MethodPost
+		}
+		req, _ := http.NewRequest(method, srv.AdminURL()+ep, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%s: %v", ep, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s: expected 401, got %d", ep, resp.StatusCode)
+		}
+	}
+}
+
+func TestE2E_Webhook_TaskEscalation(t *testing.T) {
+	// Set up a mock webhook server
+	webhookReceived := make(chan []byte, 1)
+	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		webhookReceived <- body
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer webhookServer.Close()
+
+	// Create server with webhook URL and max_escalations=1
+	wsPort := getFreePort(t)
+	adminPort := getFreePort(t)
+	cfg := server.Config{
+		WebSocketAddr:    fmt.Sprintf("127.0.0.1:%d", wsPort),
+		AdminAddr:        fmt.Sprintf("127.0.0.1:%d", adminPort),
+		Token:            "",
+		HeartbeatTimeout: 5 * time.Second,
+		HeartbeatScan:    1 * time.Second,
+		QueueMaxLen:      100,
+		QueueMaxAge:      5 * time.Minute,
+		MaxEscalations:   1,
+		WebhookURLs:      []string{webhookServer.URL},
+	}
+	srv := server.NewServer(cfg, nil)
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	defer srv.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	e2e := &E2EServer{
+		Server:    srv,
+		WSAddr:    cfg.WebSocketAddr,
+		AdminAddr: cfg.AdminAddr,
+	}
+
+	// Register two clients so escalation can reassign
+	clientA := NewMockClient(t, MockClientOptions{
+		ClientID: "failer-a",
+		Role:     "coder",
+		Skills:   []string{"github"},
+		Capacity: 1,
+	})
+	clientB := NewMockClient(t, MockClientOptions{
+		ClientID: "failer-b",
+		Role:     "coder",
+		Skills:   []string{"github"},
+		Capacity: 1,
+	})
+	if err := clientA.Connect(e2e.WSURL()); err != nil {
+		t.Fatalf("connect A: %v", err)
+	}
+	if err := clientB.Connect(e2e.WSURL()); err != nil {
+		t.Fatalf("connect B: %v", err)
+	}
+	defer clientA.Close()
+	defer clientB.Close()
+	_, _ = clientA.WaitForMessage(reef.MsgRegisterAck, 2*time.Second)
+	_, _ = clientB.WaitForMessage(reef.MsgRegisterAck, 2*time.Second)
+
+	// Submit task
+	taskID := e2e.SubmitTask(t, "this will fail", "coder", []string{"github"})
+
+	// First dispatch goes to one client
+	var firstClient, secondClient *MockClient
+	select {
+	case msg := <-clientA.Messages():
+		if msg.MsgType == reef.MsgTaskDispatch {
+			firstClient = clientA
+			secondClient = clientB
+		}
+	case msg := <-clientB.Messages():
+		if msg.MsgType == reef.MsgTaskDispatch {
+			firstClient = clientB
+			secondClient = clientA
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for first dispatch")
+	}
+
+	// First client fails → reassigned to second
+	firstClient.SendTaskFailed(taskID, "execution_error", "first failure")
+
+	// Second client gets the reassignment
+	_, ok := secondClient.WaitForTaskDispatch(3*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for reassignment to second client")
+	}
+
+	// Second client also fails → escalation count = 1, max = 1 → escalate
+	secondClient.SendTaskFailed(taskID, "execution_error", "second failure")
+
+	// Wait for escalation
+	e2e.WaitForTaskStatus(t, taskID, reef.TaskEscalated, 5*time.Second)
+
+	// Verify webhook was called
+	select {
+	case body := <-webhookReceived:
+		var payload server.WebhookPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode webhook payload: %v", err)
+		}
+		if payload.Event != "task_escalated" {
+			t.Errorf("event=%s, want task_escalated", payload.Event)
+		}
+		if payload.TaskID != taskID {
+			t.Errorf("task_id=%s, want %s", payload.TaskID, taskID)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("webhook not received within timeout")
+	}
+}
+
+func TestE2E_TaskWithModelHint(t *testing.T) {
+	srv := NewE2EServer(t, "")
+	defer srv.Shutdown(t)
+
+	// Register a client
+	client := NewMockClient(t, MockClientOptions{
+		ClientID: "coder-1",
+		Role:     "coder",
+		Skills:   []string{"github"},
+		Capacity: 3,
+	})
+	if err := client.Connect(srv.WSURL()); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer client.Close()
+	_, _ = client.WaitForMessage(reef.MsgRegisterAck, 2*time.Second)
+
+	// Submit task with model_hint
+	taskID := srv.SubmitTaskWithModelHint(t, "write code", "coder", []string{"github"}, "gpt-4o")
+
+	// Verify task has model_hint in scheduler
+	task := srv.Scheduler().GetTask(taskID)
+	if task == nil {
+		t.Fatal("task should exist")
+	}
+	if task.ModelHint != "gpt-4o" {
+		t.Errorf("model_hint=%s, want gpt-4o", task.ModelHint)
+	}
+
+	// Wait for dispatch and verify payload includes model_hint
+	payload, ok := client.WaitForTaskDispatch(3*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for dispatch")
+	}
+	if payload.ModelHint != "gpt-4o" {
+		t.Errorf("dispatch model_hint=%s, want gpt-4o", payload.ModelHint)
 	}
 }

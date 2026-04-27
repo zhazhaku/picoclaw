@@ -125,6 +125,7 @@ Every message uses this envelope:
   "required_role": "coder",
   "required_skills": ["github"],
   "context": { "repo": "myorg/backend" },
+  "model_hint": "gpt-4o",
   "timestamp": 1714195200000
 }
 ```
@@ -136,6 +137,7 @@ Every message uses this envelope:
 | `required_role` | string | Role that should execute |
 | `required_skills` | array | Skills needed |
 | `context` | object | Optional context data (key-value) |
+| `model_hint` | string | Optional: preferred model for execution |
 | `timestamp` | int64 | Dispatch time |
 
 ---

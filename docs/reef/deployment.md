@@ -47,83 +47,37 @@ picoclaw --config client-config.json
 
 ## Docker Compose
 
-A complete `docker-compose.yml` for running a Server and two Clients:
+A ready-to-use `docker-compose.reef.yml` is provided in the `docker/` directory with pre-configured Server and Client configs.
 
-```yaml
-version: "3.8"
+```bash
+# Start the full Reef cluster (Server + 2 Clients)
+cd docker
+docker compose -f docker-compose.reef.yml up -d
 
-services:
-  reef-server:
-    image: picoclaw:latest
-    build: .
-    command:
-      - reef-server
-      - --ws-addr
-      - ":8080"
-      - --admin-addr
-      - ":8081"
-      - --token
-      - "${REEF_TOKEN:-changeme}"
-    ports:
-      - "8080:8080"
-      - "8081:8081"
-    networks:
-      - reef
+# Check status
+docker compose -f docker-compose.reef.yml ps
 
-  reef-client-coder:
-    image: picoclaw:latest
-    command: ["--config", "/data/config.json"]
-    volumes:
-      - ./client-coder-config.json:/data/config.json:ro
-      - ./workspace:/root/.picoclaw/workspace
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    networks:
-      - reef
-    depends_on:
-      - reef-server
-    restart: unless-stopped
+# View logs
+docker compose -f docker-compose.reef.yml logs -f
 
-  reef-client-analyst:
-    image: picoclaw:latest
-    command: ["--config", "/data/config.json"]
-    volumes:
-      - ./client-analyst-config.json:/data/config.json:ro
-      - ./workspace:/root/.picoclaw/workspace
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    networks:
-      - reef
-    depends_on:
-      - reef-server
-    restart: unless-stopped
-
-networks:
-  reef:
-    driver: bridge
+# Stop
+docker compose -f docker-compose.reef.yml down
 ```
 
-`client-coder-config.json`:
+The compose file includes:
+- **reef-server** — Reef Server with `mode: "server"` config
+- **reef-client-coder** — Coder role client with skills: github, write_file, exec, read_file, edit_file
+- **reef-client-analyst** — Analyst role client with skills: web_fetch, web_search, summarize, read_file
 
-```json
-{
-  "providers": {
-    "openai": {
-      "api_key": "${OPENAI_API_KEY}"
-    }
-  },
-  "channels": {
-    "swarm": {
-      "enabled": true,
-      "mode": "client",
-      "server_url": "ws://reef-server:8080",
-      "role": "coder",
-      "skills": ["github", "write_file", "exec"],
-      "capacity": 3,
-      "token": "changeme"
-    }
-  }
-}
+Config files are in `docker/`:
+- `reef-server-config.json`
+- `reef-client-coder-config.json`
+- `reef-client-analyst-config.json`
+
+To customize, edit the config JSON files or set environment variables:
+
+```bash
+OPENAI_API_KEY=sk-... REEF_TOKEN=my-secret docker compose -f docker-compose.reef.yml up -d
 ```
 
 Start:

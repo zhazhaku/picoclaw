@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] — Reef v1.1
+
+### Added
+
+- **Config-driven Server mode** — `SwarmSettings.Mode` field (`"server"` | `"client"`) enables starting Reef Server via `config.json` without CLI flags
+- **Docker Compose deployment** — `docker/docker-compose.reef.yml` with pre-configured Server + Coder + Analyst clients
+- **Admin API authentication** — Bearer token protection for all `/admin/*` and `/tasks` endpoints (skipped when token is empty)
+- **Admin webhook alerts** — `webhook_urls` config triggers POST notifications when tasks escalate to admin
+- **Model routing hint** — `model_hint` field on task submission and dispatch payload for explicit model selection
+- **Scheduler logger** — Scheduler now has its own structured logger for webhook and escalation events
+
+### Changed
+
+- `SwarmSettings` struct expanded with `Mode`, `WSAddr`, `AdminAddr`, `MaxQueue`, `MaxEscalations`, `WebhookURLs` fields
+- `NewAdminServer()` now requires a `token` parameter
+- `SchedulerOptions` includes `Logger` and `WebhookURLs`
+- `msgTaskDispatch()` now accepts full `*Task` to populate all dispatch payload fields
+- `OnDispatch` callback signature changed from `(taskID, clientID)` to `(task, clientID)`
+
+### Fixed
+
+- Documentation config examples now match actual code (`mode` field previously documented but not implemented)
+
+## [0.1.0] — Reef v1.0
+
 ### Added
 
 - **Reef v1.0.0** — Distributed multi-agent swarm orchestration system
@@ -25,7 +50,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - WebSocket handshake now calls `scheduler.HandleClientAvailable()` after client registration, ensuring queued tasks are dispatched to newly connected clients.
-
-## [0.x.x] — Prior to Reef
-
-See git history for changes before the Reef distributed swarm feature.

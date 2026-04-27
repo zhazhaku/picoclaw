@@ -78,6 +78,13 @@ func (s *E2EServer) Shutdown(t *testing.T) {
 	_ = ctx
 }
 
+// setAuth adds the Authorization header if a token is configured.
+func (s *E2EServer) setAuth(req *http.Request) {
+	if s.token != "" {
+		req.Header.Set("Authorization", "Bearer "+s.token)
+	}
+}
+
 // SubmitTask submits a task via the Admin HTTP API.
 func (s *E2EServer) SubmitTask(t *testing.T, instruction, requiredRole string, skills []string) string {
 	reqBody, _ := json.Marshal(map[string]any{
@@ -87,7 +94,11 @@ func (s *E2EServer) SubmitTask(t *testing.T, instruction, requiredRole string, s
 		"max_retries":     1,
 	})
 
-	resp, err := http.Post(s.AdminURL()+"/tasks", "application/json", bytes.NewReader(reqBody))
+	req, _ := http.NewRequest(http.MethodPost, s.AdminURL()+"/tasks", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	s.setAuth(req)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("submit task: %v", err)
 	}
@@ -105,9 +116,44 @@ func (s *E2EServer) SubmitTask(t *testing.T, instruction, requiredRole string, s
 	return result["task_id"]
 }
 
+// SubmitTaskWithModelHint submits a task with a model_hint via the Admin HTTP API.
+func (s *E2EServer) SubmitTaskWithModelHint(t *testing.T, instruction, requiredRole string, skills []string, modelHint string) string {
+	reqBody, _ := json.Marshal(map[string]any{
+		"instruction":     instruction,
+		"required_role":   requiredRole,
+		"required_skills": skills,
+		"max_retries":     1,
+		"model_hint":      modelHint,
+	})
+
+	req, _ := http.NewRequest(http.MethodPost, s.AdminURL()+"/tasks", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	s.setAuth(req)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("submit task with model_hint: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("submit task with model_hint: status=%d body=%s", resp.StatusCode, string(body))
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode submit response: %v", err)
+	}
+	return result["task_id"]
+}
+
 // GetStatus queries /admin/status.
 func (s *E2EServer) GetStatus(t *testing.T) *StatusResponse {
-	resp, err := http.Get(s.AdminURL() + "/admin/status")
+	req, _ := http.NewRequest(http.MethodGet, s.AdminURL()+"/admin/status", nil)
+	s.setAuth(req)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get status: %v", err)
 	}
@@ -118,6 +164,20 @@ func (s *E2EServer) GetStatus(t *testing.T) *StatusResponse {
 		t.Fatalf("decode status: %v", err)
 	}
 	return &status
+}
+
+// GetStatusRaw returns the raw HTTP response for /admin/status (for auth testing).
+func (s *E2EServer) GetStatusRaw(t *testing.T, authHeader string) *http.Response {
+	req, _ := http.NewRequest(http.MethodGet, s.AdminURL()+"/admin/status", nil)
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get status raw: %v", err)
+	}
+	return resp
 }
 
 // GetTasks queries /admin/tasks with optional filters.
@@ -133,7 +193,10 @@ func (s *E2EServer) GetTasks(t *testing.T, role, taskStatus string) *TasksRespon
 		}
 	}
 
-	resp, err := http.Get(url)
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	s.setAuth(req)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get tasks: %v", err)
 	}

@@ -1,0 +1,18 @@
+{
+  "providers": {
+    "openai": {
+      "api_key": "${OPENAI_API_KEY}"
+    }
+  },
+  "channels": {
+    "swarm": {
+      "enabled": true,
+      "mode": "client",
+      "server_url": "ws://reef-server:8080",
+      "token": "changeme",
+      "role": "coder",
+      "skills": ["github", "write_file", "exec", "read_file", "edit_file"],
+      "capacity": 3
+    }
+  }
+}

@@ -118,6 +118,7 @@ type TaskDispatchPayload struct {
 	RequiredSkills []string          `json:"required_skills,omitempty"`
 	MaxRetries     int               `json:"max_retries"`
 	TimeoutMs      int64             `json:"timeout_ms"`
+	ModelHint      string            `json:"model_hint,omitempty"`
 	CreatedAt      int64             `json:"created_at"`
 }
 

@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  # ─────────────────────────────────────────────
+  # Reef Server
+  #   docker compose -f docker/docker-compose.reef.yml up -d reef-server
+  # ─────────────────────────────────────────────
+  reef-server:
+    image: sipeed/picoclaw:latest
+    container_name: reef-server
+    command: ["--config", "/data/config.json"]
+    volumes:
+      - ./reef-server-config.json:/data/config.json:ro
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    networks:
+      - reef
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Reef Client — Coder
+  #   docker compose -f docker/docker-compose.reef.yml up -d
+  # ─────────────────────────────────────────────
+  reef-client-coder:
+    image: sipeed/picoclaw:latest
+    container_name: reef-client-coder
+    command: ["--config", "/data/config.json"]
+    volumes:
+      - ./reef-client-coder-config.json:/data/config.json:ro
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - reef
+    depends_on:
+      - reef-server
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Reef Client — Analyst
+  # ─────────────────────────────────────────────
+  reef-client-analyst:
+    image: sipeed/picoclaw:latest
+    container_name: reef-client-analyst
+    command: ["--config", "/data/config.json"]
+    volumes:
+      - ./reef-client-analyst-config.json:/data/config.json:ro
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - reef
+    depends_on:
+      - reef-server
+    restart: unless-stopped
+
+networks:
+  reef:
+    driver: bridge

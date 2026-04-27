@@ -48,6 +48,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/netbind"
 	"github.com/sipeed/picoclaw/pkg/pid"
 	"github.com/sipeed/picoclaw/pkg/providers"
+	reefserver "github.com/sipeed/picoclaw/pkg/reef/server"
 	"github.com/sipeed/picoclaw/pkg/state"
 	"github.com/sipeed/picoclaw/pkg/tools"
 )
@@ -152,6 +153,12 @@ func Run(debug bool, homePath, configPath string, allowEmptyStartup bool) (runEr
 
 	if err = preCheckConfig(cfg); err != nil {
 		return fmt.Errorf("config pre-check failed: %w", err)
+	}
+
+	// Check for Reef Server mode — if swarm channel is configured with mode=server,
+	// start the Reef Server instead of the normal gateway.
+	if reefErr := runReefServerMode(cfg); reefErr != nil {
+		return reefErr
 	}
 
 	// Debug mode permanently overrides the config log level to DEBUG.
@@ -807,4 +814,72 @@ func createHeartbeatHandler(agentLoop *agent.AgentLoop) func(prompt, channel, ch
 		}
 		return tools.SilentResult(response)
 	}
+}
+
+// runReefServerMode checks if the swarm channel is configured with mode=server.
+// If so, it starts the Reef Server and blocks until SIGTERM/SIGINT, then returns nil.
+// If swarm is not in server mode, it returns nil immediately.
+func runReefServerMode(cfg *config.Config) error {
+	ch, exists := cfg.Channels["swarm"]
+	if !exists || !ch.Enabled {
+		return nil
+	}
+
+	decoded, err := ch.GetDecoded()
+	if err != nil || decoded == nil {
+		return nil
+	}
+
+	settings, ok := decoded.(*config.SwarmSettings)
+	if !ok || settings.Mode != "server" {
+		return nil
+	}
+
+	// Validate required fields
+	if settings.WSAddr == "" {
+		return fmt.Errorf("swarm mode 'server' requires ws_addr")
+	}
+
+	adminAddr := settings.AdminAddr
+	if adminAddr == "" {
+		adminAddr = ":8081"
+	}
+
+	maxQueue := settings.MaxQueue
+	if maxQueue <= 0 {
+		maxQueue = 1000
+	}
+	maxEscalations := settings.MaxEscalations
+	if maxEscalations <= 0 {
+		maxEscalations = 2
+	}
+
+	srvCfg := reefserver.Config{
+		WebSocketAddr:    settings.WSAddr,
+		AdminAddr:        adminAddr,
+		Token:            settings.Token,
+		HeartbeatTimeout: 30 * time.Second,
+		HeartbeatScan:    5 * time.Second,
+		QueueMaxLen:      maxQueue,
+		QueueMaxAge:      10 * time.Minute,
+		MaxEscalations:   maxEscalations,
+		WebhookURLs:      settings.WebhookURLs,
+	}
+
+	srv := reefserver.NewServer(srvCfg, nil)
+	if err := srv.Start(); err != nil {
+		return fmt.Errorf("start reef server: %w", err)
+	}
+
+	fmt.Printf("✓ Reef Server started (via config)\n")
+	fmt.Printf("  WebSocket: %s\n", settings.WSAddr)
+	fmt.Printf("  Admin:     %s\n", adminAddr)
+	fmt.Println("Press Ctrl+C to stop")
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan
+
+	fmt.Println("\nShutting down Reef Server...")
+	return srv.Stop()
 }

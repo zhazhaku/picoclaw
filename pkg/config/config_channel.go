@@ -504,14 +504,20 @@ func validateSingletonChannels(channels ChannelsConfig) error {
 // SwarmSettings configures the Reef SwarmChannel.
 type SwarmSettings struct {
 	Enabled           bool     `json:"enabled"`
-	ServerURL         string   `json:"server_url"`
+	Mode              string   `json:"mode,omitempty"`                // "server" | "client" (default)
+	ServerURL         string   `json:"server_url,omitempty"`          // Client mode: WebSocket server URL
 	Token             string   `json:"token,omitempty"`
 	ClientID          string   `json:"client_id,omitempty"`
-	Role              string   `json:"role"`
-	Skills            []string `json:"skills,omitempty"`
-	Providers         []string `json:"providers,omitempty"`
-	Capacity          int      `json:"capacity,omitempty"`
-	HeartbeatInterval int      `json:"heartbeat_interval,omitempty"`
+	Role              string   `json:"role,omitempty"`                // Client mode
+	Skills            []string `json:"skills,omitempty"`              // Client mode
+	Providers         []string `json:"providers,omitempty"`           // Client mode
+	Capacity          int      `json:"capacity,omitempty"`            // Client mode
+	HeartbeatInterval int      `json:"heartbeat_interval,omitempty"`  // Client mode
+	WSAddr            string   `json:"ws_addr,omitempty"`             // Server mode: WebSocket listen address
+	AdminAddr         string   `json:"admin_addr,omitempty"`          // Server mode: Admin HTTP listen address
+	MaxQueue          int      `json:"max_queue,omitempty"`           // Server mode
+	MaxEscalations    int      `json:"max_escalations,omitempty"`     // Server mode
+	WebhookURLs       []string `json:"webhook_urls,omitempty"`        // Server mode: escalation alert webhooks
 }
 
 // BaseFieldNames are JSON keys that belong to Channel, not to channel-specific settings.

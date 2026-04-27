@@ -1,0 +1,8 @@
+name: reef-v1.1
+schema: spec-driven
+status: planning
+created: "2026-04-27"
+description: |
+  Reef v1.1 — 补全 v1 遗留缺口：配置驱动的 Server/Client 模式切换、
+  Docker Compose 一键部署、Admin 升级告警 Webhook、Admin API 认证、
+  任务级模型路由提示。

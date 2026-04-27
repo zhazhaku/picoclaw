@@ -23,8 +23,8 @@ func TestScheduler_SubmitAndDispatch(t *testing.T) {
 
 	var dispatchedTaskID, dispatchedClientID string
 	sch := NewScheduler(reg, queue, SchedulerOptions{
-		OnDispatch: func(taskID, clientID string) error {
-			dispatchedTaskID = taskID
+		OnDispatch: func(task *reef.Task, clientID string) error {
+			dispatchedTaskID = task.ID
 			dispatchedClientID = clientID
 			return nil
 		},

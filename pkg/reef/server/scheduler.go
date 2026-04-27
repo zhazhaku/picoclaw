@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -12,19 +13,23 @@ import (
 type Scheduler struct {
 	registry *Registry
 	queue    *TaskQueue
+	logger   *slog.Logger
 
 	mu    sync.RWMutex
 	tasks map[string]*reef.Task // global task index by ID
 
 	maxEscalations int
-	onDispatch     func(taskID, clientID string) error
+	webhookURLs    []string
+	onDispatch     func(task *reef.Task, clientID string) error
 	onRequeue      func(task *reef.Task)
 }
 
 // SchedulerOptions configures the scheduler.
 type SchedulerOptions struct {
 	MaxEscalations int
-	OnDispatch     func(taskID, clientID string) error
+	WebhookURLs    []string
+	Logger         *slog.Logger
+	OnDispatch     func(task *reef.Task, clientID string) error
 	OnRequeue      func(task *reef.Task)
 }
 
@@ -33,11 +38,16 @@ func NewScheduler(registry *Registry, queue *TaskQueue, opts SchedulerOptions) *
 	if opts.MaxEscalations < 0 {
 		opts.MaxEscalations = 2
 	}
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.NewTextHandler(nil, nil))
+	}
 	return &Scheduler{
 		registry:       registry,
 		queue:          queue,
+		logger:         opts.Logger,
 		tasks:          make(map[string]*reef.Task),
 		maxEscalations: opts.MaxEscalations,
+		webhookURLs:    opts.WebhookURLs,
 		onDispatch:     opts.OnDispatch,
 		onRequeue:      opts.OnRequeue,
 	}
@@ -136,7 +146,7 @@ func (s *Scheduler) dispatch(task *reef.Task, client *reef.ClientInfo) error {
 	s.registry.IncrementLoad(client.ID)
 
 	if s.onDispatch != nil {
-		if err := s.onDispatch(task.ID, client.ID); err != nil {
+		if err := s.onDispatch(task, client.ID); err != nil {
 			// Rollback
 			s.registry.DecrementLoad(client.ID)
 			task.AssignedClient = ""
@@ -223,7 +233,18 @@ func (s *Scheduler) HandleTaskFailed(taskID string, taskErr *reef.TaskError, att
 		// Already in Failed state — no further transition.
 	case EscalationToAdmin:
 		_ = task.Transition(reef.TaskEscalated)
-		// TODO: emit admin alert
+		go sendWebhookAlert(s.logger, s.webhookURLs, WebhookPayload{
+			Event:           "task_escalated",
+			TaskID:          task.ID,
+			Status:          string(task.Status),
+			Instruction:     task.Instruction,
+			RequiredRole:    task.RequiredRole,
+			Error:           task.Error,
+			AttemptHistory:  task.AttemptHistory,
+			EscalationCount: task.EscalationCount,
+			MaxEscalations:  s.maxEscalations,
+			Timestamp:       time.Now().UnixMilli(),
+		})
 	}
 	s.mu.Unlock()
 

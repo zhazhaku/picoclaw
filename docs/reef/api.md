@@ -10,7 +10,21 @@ http://<server>:8081
 
 ## Authentication
 
-WebSocket connections require the `x-reef-token` header. Admin API endpoints currently do not require authentication (configure reverse proxy or firewall for production).
+WebSocket connections require the `x-reef-token` header.
+
+Admin API endpoints (`/admin/*` and `/tasks`) require a Bearer token when the server is configured with a `token`. Include it in the `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+When no token is configured on the server, authentication is skipped (development mode).
+
+**Example:**
+
+```bash
+curl -H "Authorization: Bearer my-secret-token" http://localhost:8081/admin/status
+```
 
 ## Endpoints
 
@@ -163,7 +177,8 @@ Submit a new task to the Reef Server.
   "required_role": "coder",
   "required_skills": ["github", "write_file"],
   "max_retries": 2,
-  "timeout_ms": 300000
+  "timeout_ms": 300000,
+  "model_hint": "gpt-4o"
 }
 ```
 
@@ -174,6 +189,7 @@ Submit a new task to the Reef Server.
 | `required_skills` | array | No | Skills the agent must have |
 | `max_retries` | int | No | Max retry attempts (default: 2) |
 | `timeout_ms` | int64 | No | Task timeout in milliseconds |
+| `model_hint` | string | No | Preferred model for execution (overrides smart routing) |
 
 **Response (202 Accepted):**
 

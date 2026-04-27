@@ -1,0 +1,12 @@
+{
+  "channels": {
+    "swarm": {
+      "enabled": true,
+      "mode": "server",
+      "ws_addr": ":8080",
+      "admin_addr": ":8081",
+      "token": "changeme",
+      "webhook_urls": []
+    }
+  }
+}

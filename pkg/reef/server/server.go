@@ -22,6 +22,7 @@ type Config struct {
 	QueueMaxLen      int
 	QueueMaxAge      time.Duration
 	MaxEscalations   int
+	WebhookURLs      []string
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -72,12 +73,14 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	// Scheduler
 	s.scheduler = NewScheduler(s.registry, s.queue, SchedulerOptions{
 		MaxEscalations: cfg.MaxEscalations,
-		OnDispatch: func(taskID, clientID string) error {
+		WebhookURLs:    cfg.WebhookURLs,
+		Logger:         logger,
+		OnDispatch: func(task *reef.Task, clientID string) error {
 			// Actually send the task_dispatch message via WebSocket
 			if s.wsServer == nil {
 				return fmt.Errorf("websocket server not ready")
 			}
-			return s.wsServer.SendMessage(clientID, msgTaskDispatch(taskID))
+			return s.wsServer.SendMessage(clientID, msgTaskDispatch(task))
 		},
 		OnRequeue: func(task *reef.Task) {
 			logger.Info("task requeued", slog.String("task_id", task.ID))
@@ -88,7 +91,7 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	s.wsServer = NewWebSocketServer(s.registry, s.scheduler, cfg.Token, logger)
 
 	// Admin server
-	s.admin = NewAdminServer(s.registry, s.scheduler, logger)
+	s.admin = NewAdminServer(s.registry, s.scheduler, cfg.Token, logger)
 
 	return s
 }
@@ -209,11 +212,17 @@ func (s *Server) WSServer() *WebSocketServer { return s.wsServer }
 // AdminHandler exposes the admin server for external route registration.
 func (s *Server) AdminHandler() *AdminServer { return s.admin }
 
-// msgTaskDispatch creates a task_dispatch message for the given task ID.
-// The actual payload is populated by the caller (scheduler) with full task details.
-func msgTaskDispatch(taskID string) reef.Message {
-	msg, _ := reef.NewMessage(reef.MsgTaskDispatch, taskID, reef.TaskDispatchPayload{
-		TaskID: taskID,
+// msgTaskDispatch creates a task_dispatch message populated from the full task.
+func msgTaskDispatch(task *reef.Task) reef.Message {
+	msg, _ := reef.NewMessage(reef.MsgTaskDispatch, task.ID, reef.TaskDispatchPayload{
+		TaskID:         task.ID,
+		Instruction:    task.Instruction,
+		RequiredRole:   task.RequiredRole,
+		RequiredSkills: task.RequiredSkills,
+		MaxRetries:     task.MaxRetries,
+		TimeoutMs:      task.TimeoutMs,
+		ModelHint:      task.ModelHint,
+		CreatedAt:      task.CreatedAt.UnixMilli(),
 	})
 	return msg
 }
