@@ -133,6 +133,9 @@ func (s *WebSocketServer) handshake(conn *Conn) error {
 	}
 	conn.registry.Register(info)
 
+	// Notify scheduler that a new client is available for task dispatch
+	s.scheduler.HandleClientAvailable(payload.ClientID)
+
 	// Flush any pending control messages for this client
 	s.pendingMu.Lock()
 	pending := s.pendingControls[payload.ClientID]

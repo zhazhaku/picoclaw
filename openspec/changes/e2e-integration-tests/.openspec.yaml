@@ -1,0 +1,7 @@
+name: e2e-integration-tests
+schema: spec-driven
+status: active
+created: "2026-04-27"
+description: |
+  End-to-end integration tests for Reef distributed multi-agent swarm.
+  Validates the full Server-Client lifecycle over real WebSocket connections.
