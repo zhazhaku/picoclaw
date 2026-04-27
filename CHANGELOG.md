@@ -19,6 +19,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Auto-directory creation** — SQLite store creates parent directories automatically
 - **Comprehensive store tests** — 19 unit tests covering MemoryStore and SQLiteStore (CRUD, concurrent access, WAL mode, auto-directory)
 
+### Added (Phase 2: TLS)
+
+- **TLS native support** — Server WebSocket and Admin API support TLS via `tls.NewListener`
+- **Client wss:// support** — Connector automatically configures TLS for `wss://` URLs
+- **Custom CA certificates** — Client can specify `tls_ca_file` for self-signed servers
+- **Mutual TLS (mTLS)** — Client can present certificates via `tls_cert_file` + `tls_key_file`
+- **TLS skip verify** — `tls_skip_verify` option for development environments
+- **TLSConfig struct** — Reusable TLS configuration with validation and cert loading
+- **TLS configuration fields** — `tls_enabled`, `tls_cert_file`, `tls_key_file`, `tls_ca_file`, `tls_skip_verify` in SwarmSettings
+
 ## [0.2.0] — Reef v1.1
 
 ### Added

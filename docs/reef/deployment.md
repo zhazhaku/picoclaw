@@ -300,3 +300,67 @@ cp /var/lib/reef/reef.db /backup/reef-$(date +%Y%m%d).db
 # Or use SQLite's online backup
 sqlite3 /var/lib/reef/reef.db ".backup '/backup/reef.db'"
 ```
+
+## TLS Configuration (v2.0)
+
+Reef supports native TLS for both WebSocket and Admin API connections.
+
+### Server Configuration
+
+```json
+{
+  "channels": {
+    "swarm": {
+      "enabled": true,
+      "mode": "server",
+      "ws_addr": ":8443",
+      "admin_addr": ":8444",
+      "tls_enabled": true,
+      "tls_cert_file": "/etc/reef/cert.pem",
+      "tls_key_file": "/etc/reef/key.pem"
+    }
+  }
+}
+```
+
+### Client Configuration
+
+```json
+{
+  "channels": {
+    "swarm": {
+      "enabled": true,
+      "server_url": "wss://reef.example.com:8443",
+      "tls_ca_file": "/etc/reef/ca.pem",
+      "tls_skip_verify": false
+    }
+  }
+}
+```
+
+### Self-Signed Certificates
+
+For development with self-signed certificates:
+
+```bash
+# Generate self-signed certificate
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj '/CN=localhost'
+
+# Client config: set tls_ca_file to the CA cert or tls_skip_verify=true (dev only)
+```
+
+### Mutual TLS (mTLS)
+
+For mutual TLS authentication, configure both client certificate and key:
+
+```json
+{
+  "channels": {
+    "swarm": {
+      "tls_cert_file": "/etc/reef/client-cert.pem",
+      "tls_key_file": "/etc/reef/client-key.pem",
+      "tls_ca_file": "/etc/reef/ca.pem"
+    }
+  }
+}
+```

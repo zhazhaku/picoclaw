@@ -868,6 +868,15 @@ func runReefServerMode(cfg *config.Config) error {
 		StorePath:        settings.StorePath,
 	}
 
+	// Configure TLS if enabled
+	if settings.TLSEnabled {
+		srvCfg.TLS = &reefserver.TLSConfig{
+			Enabled:  true,
+			CertFile: settings.TLSCertFile,
+			KeyFile:  settings.TLSKeyFile,
+		}
+	}
+
 	srv := reefserver.NewServer(srvCfg, nil)
 	if err := srv.Start(); err != nil {
 		return fmt.Errorf("start reef server: %w", err)

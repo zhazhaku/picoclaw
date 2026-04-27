@@ -2,10 +2,14 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +26,7 @@ type Connector struct {
 	skills      []string
 	providers   []string
 	capacity    int
+	opts        ConnectorOptions
 
 	conn      *websocket.Conn
 	mu        sync.Mutex
@@ -45,6 +50,10 @@ type ConnectorOptions struct {
 	Capacity          int
 	HeartbeatInterval time.Duration
 	Logger            *slog.Logger
+	TLSCertFile       string // Client certificate (optional, for mutual TLS)
+	TLSKeyFile        string // Client key (optional, for mutual TLS)
+	TLSCAFile         string // Custom CA certificate (for self-signed servers)
+	TLSSkipVerify     bool   // Skip certificate verification (dev only)
 }
 
 // NewConnector creates a new WebSocket connector.
@@ -66,6 +75,7 @@ func NewConnector(opts ConnectorOptions) *Connector {
 		skills:            opts.Skills,
 		providers:         opts.Providers,
 		capacity:          opts.Capacity,
+		opts:              opts,
 		sendCh:            make(chan reef.Message, 64),
 		msgInCh:           make(chan reef.Message, 16),
 		backoff:           NewBackoff(1*time.Second, 60*time.Second),
@@ -138,7 +148,41 @@ func (c *Connector) dialAndRegister(ctx context.Context) error {
 		header.Set("x-reef-token", c.token)
 	}
 
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+	}
+
+	// Configure TLS for wss:// connections
+	if strings.HasPrefix(c.serverURL, "wss://") {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: c.opts.TLSSkipVerify,
+		}
+
+		// Load custom CA certificate
+		if c.opts.TLSCAFile != "" {
+			caCert, err := os.ReadFile(c.opts.TLSCAFile)
+			if err != nil {
+				return fmt.Errorf("read CA file: %w", err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caCert) {
+				return fmt.Errorf("failed to parse CA certificate")
+			}
+			tlsCfg.RootCAs = pool
+		}
+
+		// Load client certificate (mutual TLS)
+		if c.opts.TLSCertFile != "" && c.opts.TLSKeyFile != "" {
+			cert, err := tls.LoadX509KeyPair(c.opts.TLSCertFile, c.opts.TLSKeyFile)
+			if err != nil {
+				return fmt.Errorf("load client certificate: %w", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
+
+		dialer.TLSClientConfig = tlsCfg
+	}
+
 	ws, _, err := dialer.DialContext(ctx, c.serverURL, header)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)

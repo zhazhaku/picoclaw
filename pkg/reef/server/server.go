@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -26,6 +27,7 @@ type Config struct {
 	WebhookURLs      []string
 	StoreType        string // "memory" (default) or "sqlite"
 	StorePath        string // SQLite database file path
+	TLS              *TLSConfig
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -118,6 +120,17 @@ func (s *Server) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancelCtx = cancel
 
+	// Load TLS config if enabled
+	var tlsCfg *tls.Config
+	if s.config.TLS != nil && s.config.TLS.Enabled {
+		var err error
+		tlsCfg, err = s.config.TLS.LoadTLSConfig()
+		if err != nil {
+			return fmt.Errorf("load TLS: %w", err)
+		}
+		s.logger.Info("TLS enabled")
+	}
+
 	// WebSocket HTTP server
 	wsMux := http.NewServeMux()
 	wsMux.Handle("/ws", s.wsServer)
@@ -144,15 +157,32 @@ func (s *Server) Start() error {
 		return fmt.Errorf("admin listen: %w", err)
 	}
 
+	// Wrap with TLS if configured
+	if tlsCfg != nil {
+		wsListener = tls.NewListener(wsListener, tlsCfg)
+		adminListener = tls.NewListener(adminListener, tlsCfg)
+	}
+
+	wsScheme := "ws"
+	adminScheme := "http"
+	if tlsCfg != nil {
+		wsScheme = "wss"
+		adminScheme = "https"
+	}
+
 	go func() {
-		s.logger.Info("websocket server listening", slog.String("addr", s.config.WebSocketAddr))
+		s.logger.Info("websocket server listening",
+			slog.String("addr", s.config.WebSocketAddr),
+			slog.String("scheme", wsScheme))
 		if err := s.wsHTTPServer.Serve(wsListener); err != nil && err != http.ErrServerClosed {
 			s.logger.Error("websocket server error", slog.String("error", err.Error()))
 		}
 	}()
 
 	go func() {
-		s.logger.Info("admin server listening", slog.String("addr", s.config.AdminAddr))
+		s.logger.Info("admin server listening",
+			slog.String("addr", s.config.AdminAddr),
+			slog.String("scheme", adminScheme))
 		if err := s.httpServer.Serve(adminListener); err != nil && err != http.ErrServerClosed {
 			s.logger.Error("admin server error", slog.String("error", err.Error()))
 		}

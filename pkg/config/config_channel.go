@@ -520,6 +520,11 @@ type SwarmSettings struct {
 	WebhookURLs       []string `json:"webhook_urls,omitempty"`        // Server mode: escalation alert webhooks
 	StoreType         string   `json:"store_type,omitempty"`          // Server mode: "memory" (default) or "sqlite"
 	StorePath         string   `json:"store_path,omitempty"`          // Server mode: SQLite database file path
+	TLSEnabled        bool     `json:"tls_enabled,omitempty"`         // Enable TLS for server/client
+	TLSCertFile       string   `json:"tls_cert_file,omitempty"`       // TLS certificate file
+	TLSKeyFile        string   `json:"tls_key_file,omitempty"`        // TLS key file
+	TLSCAFile         string   `json:"tls_ca_file,omitempty"`         // Custom CA certificate file
+	TLSSkipVerify     bool     `json:"tls_skip_verify,omitempty"`     // Skip TLS verification (dev only)
 }
 
 // BaseFieldNames are JSON keys that belong to Channel, not to channel-specific settings.

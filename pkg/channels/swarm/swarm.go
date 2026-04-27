@@ -92,6 +92,10 @@ func NewSwarmChannel(
 		Providers:         cfg.Providers,
 		Capacity:          cfg.Capacity,
 		HeartbeatInterval: time.Duration(cfg.HeartbeatInterval) * time.Second,
+		TLSCertFile:       cfg.TLSCertFile,
+		TLSKeyFile:        cfg.TLSKeyFile,
+		TLSCAFile:         cfg.TLSCAFile,
+		TLSSkipVerify:     cfg.TLSSkipVerify,
 	}
 
 	ch := &SwarmChannel{
