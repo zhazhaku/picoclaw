@@ -30,6 +30,7 @@ func NewAdminServer(registry *Registry, scheduler *Scheduler, token string, logg
 }
 
 // RegisterRoutes registers admin routes on the provided ServeMux.
+// UI routes are registered separately via ui.Handler.RegisterRoutes.
 func (a *AdminServer) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/status", a.authMiddleware(a.handleStatus))
 	mux.HandleFunc("/admin/tasks", a.authMiddleware(a.handleTasks))

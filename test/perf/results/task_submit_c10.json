@@ -1,0 +1,18 @@
+{
+  "test_name": "task_submit_c10",
+  "timestamp": "2026-04-27T22:42:40Z",
+  "config": {
+    "concurrency": 10,
+    "total_tasks": 100,
+    "server_addr": "127.0.0.1:33257"
+  },
+  "results": {
+    "duration_ms": 323,
+    "throughput_ops": 309.5975232198142,
+    "latency_p50_ms": 1,
+    "latency_p95_ms": 10,
+    "latency_p99_ms": 11,
+    "error_count": 0,
+    "error_rate": 0
+  }
+}

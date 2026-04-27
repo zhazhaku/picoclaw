@@ -11,6 +11,7 @@ import (
 
 	"github.com/sipeed/picoclaw/pkg/reef"
 	"github.com/sipeed/picoclaw/pkg/reef/server"
+	"github.com/sipeed/picoclaw/pkg/reef/server/notify"
 )
 
 // ---------------------------------------------------------------------------
@@ -874,7 +875,7 @@ func TestE2E_Webhook_TaskEscalation(t *testing.T) {
 	// Verify webhook was called
 	select {
 	case body := <-webhookReceived:
-		var payload server.WebhookPayload
+		var payload notify.Alert
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("decode webhook payload: %v", err)
 		}

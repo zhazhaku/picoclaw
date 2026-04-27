@@ -13,6 +13,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/reef"
 	"github.com/sipeed/picoclaw/pkg/reef/server/notify"
 	"github.com/sipeed/picoclaw/pkg/reef/server/store"
+	"github.com/sipeed/picoclaw/pkg/reef/server/ui"
 )
 
 // Config holds all server configuration.
@@ -68,6 +69,7 @@ type Server struct {
 	scheduler *Scheduler
 	wsServer  *WebSocketServer
 	admin     *AdminServer
+	ui        *ui.Handler
 	logger    *slog.Logger
 
 	httpServer   *http.Server
@@ -125,6 +127,11 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 			notifyMgr.Add(notify.NewWeComNotifier(nc.HookURL))
 		}
 	}
+	// Fallback: if no notifications configured but legacy webhook_urls is set,
+	// auto-create a WebhookNotifier for backward compatibility.
+	if notifyMgr.Count() == 0 && len(cfg.WebhookURLs) > 0 {
+		notifyMgr.Add(notify.NewWebhookNotifier(cfg.WebhookURLs))
+	}
 
 	// Scheduler
 	s.scheduler = NewScheduler(s.registry, s.queue, SchedulerOptions{
@@ -149,6 +156,9 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 
 	// Admin server
 	s.admin = NewAdminServer(s.registry, s.scheduler, cfg.Token, logger)
+
+	// Web UI dashboard
+	s.ui = ui.NewHandler(s.registry, s.scheduler, time.Now(), logger)
 
 	return s
 }
@@ -180,6 +190,7 @@ func (s *Server) Start() error {
 	// Admin HTTP server
 	adminMux := http.NewServeMux()
 	s.admin.RegisterRoutes(adminMux)
+	s.ui.RegisterRoutes(adminMux)
 	s.httpServer = &http.Server{
 		Addr:    s.config.AdminAddr,
 		Handler: adminMux,
@@ -296,6 +307,9 @@ func (s *Server) WSServer() *WebSocketServer { return s.wsServer }
 
 // AdminHandler exposes the admin server for external route registration.
 func (s *Server) AdminHandler() *AdminServer { return s.admin }
+
+// UIHandler exposes the UI handler for external access (e.g., event publishing).
+func (s *Server) UIHandler() *ui.Handler { return s.ui }
 
 // msgTaskDispatch creates a task_dispatch message populated from the full task.
 func msgTaskDispatch(task *reef.Task) reef.Message {

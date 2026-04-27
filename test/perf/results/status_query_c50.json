@@ -1,0 +1,18 @@
+{
+  "test_name": "status_query_c50",
+  "timestamp": "2026-04-27T22:42:46Z",
+  "config": {
+    "concurrency": 50,
+    "total_tasks": 200,
+    "server_addr": "127.0.0.1:46185"
+  },
+  "results": {
+    "duration_ms": 13123,
+    "throughput_ops": 15.240417587441897,
+    "latency_p50_ms": 66,
+    "latency_p95_ms": 100,
+    "latency_p99_ms": 107,
+    "error_count": 0,
+    "error_rate": 0
+  }
+}
