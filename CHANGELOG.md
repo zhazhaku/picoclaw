@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] — Reef v2.0 (Phase 1: Persistent Queue)
+
+### Added
+
+- **Persistent task queue** — `TaskStore` interface with `MemoryStore` and `SQLiteStore` implementations
+- **SQLite WAL mode** — Server restarts automatically restore non-terminal tasks from SQLite database
+- **`PersistentQueue`** — wraps `TaskStore` with in-memory cache for high-performance reads
+- **`Queue` interface** — abstracts queue operations, enabling both in-memory and persistent implementations
+- **Store configuration** — `store_type` (`memory` | `sqlite`) and `store_path` fields in `SwarmSettings`
+- **CLI flags** — `--store-type` and `--store-path` for `picoclaw reef-server` command
+- **Auto-directory creation** — SQLite store creates parent directories automatically
+- **Comprehensive store tests** — 19 unit tests covering MemoryStore and SQLiteStore (CRUD, concurrent access, WAL mode, auto-directory)
+
 ## [0.2.0] — Reef v1.1
 
 ### Added

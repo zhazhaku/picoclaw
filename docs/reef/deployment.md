@@ -251,3 +251,52 @@ location /tasks {
     proxy_pass http://reef_admin;
 }
 ```
+
+## Persistent Storage (v2.0)
+
+By default, Reef uses an in-memory task queue. Tasks are lost on server restart. For production, enable SQLite persistence:
+
+### Configuration
+
+```json
+{
+  "channels": {
+    "swarm": {
+      "enabled": true,
+      "mode": "server",
+      "ws_addr": ":8080",
+      "admin_addr": ":8081",
+      "store_type": "sqlite",
+      "store_path": "/var/lib/reef/reef.db"
+    }
+  }
+}
+```
+
+### CLI
+
+```bash
+picoclaw reef-server \
+  --ws-addr :8080 \
+  --admin-addr :8081 \
+  --store-type sqlite \
+  --store-path /var/lib/reef/reef.db
+```
+
+### Behavior
+
+- **Server restart recovery**: Non-terminal tasks (Queued, Running, Assigned, Paused) are automatically restored on startup
+- **Running tasks reset**: Tasks that were Running when the server stopped are reset to Queued and re-dispatched
+- **WAL mode**: SQLite uses Write-Ahead Logging for concurrent read/write without blocking
+- **Auto-directory creation**: Parent directories for the database file are created automatically
+- **Fallback**: If SQLite initialization fails, the server falls back to in-memory mode with a warning
+
+### Backup
+
+```bash
+# Backup the SQLite database
+cp /var/lib/reef/reef.db /backup/reef-$(date +%Y%m%d).db
+
+# Or use SQLite's online backup
+sqlite3 /var/lib/reef/reef.db ".backup '/backup/reef.db'"
+```

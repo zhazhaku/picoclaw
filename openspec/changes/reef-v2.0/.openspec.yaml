@@ -1,0 +1,7 @@
+name: reef-v2.0
+schema: spec-driven
+status: planning
+created: "2026-04-27"
+description: |
+  Reef v2.0 — 生产级增强：持久化队列、性能基线测试、Web UI 仪表盘、
+  多 Server 联邦、TLS 原生支持、多通道告警通知。

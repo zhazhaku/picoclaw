@@ -518,6 +518,8 @@ type SwarmSettings struct {
 	MaxQueue          int      `json:"max_queue,omitempty"`           // Server mode
 	MaxEscalations    int      `json:"max_escalations,omitempty"`     // Server mode
 	WebhookURLs       []string `json:"webhook_urls,omitempty"`        // Server mode: escalation alert webhooks
+	StoreType         string   `json:"store_type,omitempty"`          // Server mode: "memory" (default) or "sqlite"
+	StorePath         string   `json:"store_path,omitempty"`          // Server mode: SQLite database file path
 }
 
 // BaseFieldNames are JSON keys that belong to Channel, not to channel-specific settings.

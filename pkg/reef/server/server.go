@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sipeed/picoclaw/pkg/reef"
+	"github.com/sipeed/picoclaw/pkg/reef/server/store"
 )
 
 // Config holds all server configuration.
@@ -23,6 +24,8 @@ type Config struct {
 	QueueMaxAge      time.Duration
 	MaxEscalations   int
 	WebhookURLs      []string
+	StoreType        string // "memory" (default) or "sqlite"
+	StorePath        string // SQLite database file path
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -43,7 +46,7 @@ func DefaultConfig() Config {
 type Server struct {
 	config    Config
 	registry  *Registry
-	queue     *TaskQueue
+	queue     Queue
 	scheduler *Scheduler
 	wsServer  *WebSocketServer
 	admin     *AdminServer
@@ -67,8 +70,22 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 		logger.Warn("client marked stale", slog.String("client_id", clientID))
 	})
 
-	// Task queue
-	s.queue = NewTaskQueue(cfg.QueueMaxLen, cfg.QueueMaxAge)
+	// Task queue — use persistent store if configured
+	var taskQueue Queue
+	if cfg.StoreType == "sqlite" && cfg.StorePath != "" {
+		sqliteStore, err := store.NewSQLiteStore(cfg.StorePath)
+		if err != nil {
+			logger.Error("failed to open SQLite store, falling back to memory",
+				slog.String("error", err.Error()))
+			taskQueue = NewTaskQueue(cfg.QueueMaxLen, cfg.QueueMaxAge)
+		} else {
+			logger.Info("using SQLite persistent store", slog.String("path", cfg.StorePath))
+			taskQueue = NewPersistentQueue(sqliteStore, cfg.QueueMaxLen, cfg.QueueMaxAge, logger)
+		}
+	} else {
+		taskQueue = NewTaskQueue(cfg.QueueMaxLen, cfg.QueueMaxAge)
+	}
+	s.queue = taskQueue
 
 	// Scheduler
 	s.scheduler = NewScheduler(s.registry, s.queue, SchedulerOptions{
@@ -204,7 +221,7 @@ func (s *Server) Registry() *Registry { return s.registry }
 func (s *Server) Scheduler() *Scheduler { return s.scheduler }
 
 // Queue exposes the task queue for testing.
-func (s *Server) Queue() *TaskQueue { return s.queue }
+func (s *Server) Queue() Queue { return s.queue }
 
 // WSServer exposes the WebSocket server for testing.
 func (s *Server) WSServer() *WebSocketServer { return s.wsServer }

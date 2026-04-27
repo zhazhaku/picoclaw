@@ -12,7 +12,7 @@ import (
 // Scheduler matches tasks to available Clients and handles dispatch.
 type Scheduler struct {
 	registry *Registry
-	queue    *TaskQueue
+	queue    Queue
 	logger   *slog.Logger
 
 	mu    sync.RWMutex
@@ -34,7 +34,7 @@ type SchedulerOptions struct {
 }
 
 // NewScheduler creates a scheduler bound to a registry and queue.
-func NewScheduler(registry *Registry, queue *TaskQueue, opts SchedulerOptions) *Scheduler {
+func NewScheduler(registry *Registry, queue Queue, opts SchedulerOptions) *Scheduler {
 	if opts.MaxEscalations < 0 {
 		opts.MaxEscalations = 2
 	}

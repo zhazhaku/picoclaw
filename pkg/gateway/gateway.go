@@ -864,6 +864,8 @@ func runReefServerMode(cfg *config.Config) error {
 		QueueMaxAge:      10 * time.Minute,
 		MaxEscalations:   maxEscalations,
 		WebhookURLs:      settings.WebhookURLs,
+		StoreType:        settings.StoreType,
+		StorePath:        settings.StorePath,
 	}
 
 	srv := reefserver.NewServer(srvCfg, nil)
